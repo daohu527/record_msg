@@ -59,13 +59,19 @@ def to_csv(msg):
     return []
 
 
-class ImageParser:
-  def __init__(self, output_path, instance_saving=True, suffix='.jpg') -> None:
-    super(ImageParser, self).__init__(output_path, instance_saving)
+class Parser(object):
+  def __init__(self, output_path, instance_saving, suffix):
+    self._output_path = output_path
+    self._instance_saving = instance_saving
     self._suffix = suffix
+    self._msg_count = 0
 
-  def parse(self, image):
-    self._timestamps.append(image.header.timestamp_sec)
+
+class ImageParser(Parser):
+  def __init__(self, output_path, instance_saving=True, suffix='.jpg') -> None:
+    super(ImageParser, self).__init__(output_path, instance_saving, suffix)
+
+  def parse(self, image, file_name=None):
     # Save image according to cyber format, defined in sensor camera proto.
     # height = 4, image height, that is, number of rows.
     # width = 5,  image width, that is, number of columns.
@@ -91,26 +97,28 @@ class ImageParser:
     channel_num = image.step // image.width
     self._parsed_data = np.fromstring(image.data, dtype=np.uint8).reshape(
         (image.height, image.width, channel_num))
+    self._encoding = image.encoding
 
     if self._instance_saving:
-      file_name = "%05d" % self.get_msg_count() + self._suffix
+      if file_name is None:
+        file_name = "%05d" % self._msg_count + self._suffix
+        self._msg_count += 1
       output_file = os.path.join(self._output_path, file_name)
       self.save_image_mat_to_file(image_file=output_file)
-
     return True
 
   def save_image_mat_to_file(self, image_file):
     # Save image in BGR oder
     image_mat = self._parsed_data
-    if self._msg_parser.encoding == 'rgb8':
+    if self._encoding == 'rgb8':
       cv2.imwrite(image_file, cv2.cvtColor(image_mat, cv2.COLOR_RGB2BGR))
     else:
       cv2.imwrite(image_file, image_mat)
 
 
-class PointCloudParser:
+class PointCloudParser(Parser):
   def __init__(self, output_path, instance_saving=True, suffix='.pcd'):
-    self._suffix = suffix
+    super(PointCloudParser, self).__init__(output_path, instance_saving, suffix)
 
   def convert_xyzit_pb_to_array(self, xyz_i_t, data_type):
     arr = np.zeros(len(xyz_i_t), dtype=data_type)
@@ -160,12 +168,12 @@ class PointCloudParser:
     """
     Transform protobuf PointXYZIT to standard PCL bin_compressed_file(*.pcd).
     """
-    self._timestamps.append(pointcloud.measurement_time)
-
     self._parsed_data = self.make_xyzit_point_cloud(pointcloud.point)
 
     if self._instance_saving:
-      file_name = "%05d" % self.get_msg_count() + self._suffix
+      if file_name is None:
+        file_name = "%05d" % self._msg_count + self._suffix
+        self._msg_count += 1
       output_file = os.path.join(self._output_path, file_name)
       self.save_pointcloud_meta_to_file(pc_meta=self._parsed_data, pcd_file=output_file)
 
