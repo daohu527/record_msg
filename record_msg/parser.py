@@ -49,7 +49,7 @@ def to_csv(msg):
   """
   if type(msg) in (int, float, bool, str, bytes):
     return [msg]
-  elif type(msg) in (tuple, list):
+  elif msg and type(msg) in (tuple, list):
     return reduce(lambda x, y: x + y, map(lambda m: to_csv(m), msg))
   elif hasattr(msg, 'DESCRIPTOR'):
     pb_attrs = msg.DESCRIPTOR.fields_by_name.keys()
@@ -71,7 +71,7 @@ class ImageParser(Parser):
   def __init__(self, output_path, instance_saving=True, suffix='.jpg') -> None:
     super(ImageParser, self).__init__(output_path, instance_saving, suffix)
 
-  def parse(self, image, file_name=None):
+  def _valid(self, image):
     # Save image according to cyber format, defined in sensor camera proto.
     # height = 4, image height, that is, number of rows.
     # width = 5,  image width, that is, number of columns.
@@ -85,14 +85,22 @@ class ImageParser(Parser):
         print('Image.step %d does not equal to Image.width %d * 3 for color image.'
               % (image.step, image.width))
         return False
+      else:
+        return True
     elif image.encoding == 'gray' or image.encoding == 'y':
       if image.step != image.width:
         print('Image.step %d does not equal to Image.width %d or gray image.'
               % (image.step, image.width))
         return False
+      else:
+        return True
     else:
       print('Unsupported image encoding type: %s.' % image.encoding)
       return False
+
+  def parse(self, image, file_name=None):
+    if not self._valid(image):
+      return None
 
     channel_num = image.step // image.width
     self._parsed_data = np.fromstring(image.data, dtype=np.uint8).reshape(
@@ -102,10 +110,12 @@ class ImageParser(Parser):
     if self._instance_saving:
       if file_name is None:
         file_name = "%05d" % self._msg_count + self._suffix
-        self._msg_count += 1
+      else:
+        file_name = str(file_name) + self._suffix
       output_file = os.path.join(self._output_path, file_name)
       self.save_image_mat_to_file(image_file=output_file)
-    return True
+      self._msg_count += 1
+    return self._parsed_data
 
   def save_image_mat_to_file(self, image_file):
     # Save image in BGR oder
@@ -164,7 +174,7 @@ class PointCloudParser(Parser):
   def save_pointcloud_meta_to_file(self, pc_meta, pcd_file):
     pypcd.save_point_cloud_bin_compressed(pc_meta, pcd_file)
 
-  def parse_sensor_message(self, pointcloud):
+  def parse_sensor_message(self, pointcloud, file_name=None):
     """
     Transform protobuf PointXYZIT to standard PCL bin_compressed_file(*.pcd).
     """
@@ -173,8 +183,9 @@ class PointCloudParser(Parser):
     if self._instance_saving:
       if file_name is None:
         file_name = "%05d" % self._msg_count + self._suffix
-        self._msg_count += 1
+      else:
+        file_name = str(file_name) + self._suffix
       output_file = os.path.join(self._output_path, file_name)
       self.save_pointcloud_meta_to_file(pc_meta=self._parsed_data, pcd_file=output_file)
-
-    return True
+      self._msg_count += 1
+    return self._parsed_data
