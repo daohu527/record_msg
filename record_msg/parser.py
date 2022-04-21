@@ -37,7 +37,7 @@ import os
 
 from functools import reduce
 
-import pypcd
+from record_msg import pypcd
 
 
 def to_csv(msg):
@@ -183,7 +183,7 @@ class PointCloudParser(Parser):
     else:
       print("Unknown point cloud format!")
 
-  def parse_sensor_message(self, pointcloud, file_name=None, mode='ascii'):
+  def parse(self, pointcloud, file_name=None, mode='ascii'):
     """
     Transform protobuf PointXYZIT to standard PCL bin_compressed_file(*.pcd).
     """
