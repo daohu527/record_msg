@@ -1,8 +1,8 @@
 # record_msg
-record message parse helper function
+record message parse helper function. It needs to be used in combination with [**cyber_record**](https://github.com/daohu527/cyber_record)
 
 ## Parser record
-`record_msg` provides 3 interfaces to help parsing cyber record file.
+First read the record file through `cyber_record`, then `record_msg` provides 3 interfaces to help parsing cyber record file.
 
 #### csv format
 you can use `to_csv` to format objects so that they can be easily saved in csv format.
