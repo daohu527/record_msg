@@ -31,10 +31,21 @@ from record_msg.parser import ImageParser
 image_parser = ImageParser(output_path='../test')
 for topic, message, t in record.read_messages():
   if topic == "/apollo/sensor/camera/front_6mm/image":
-    image_parser.parse(image)
+    image_parser.parse(message)
     # or use timestamp as image file name
     # image_parser.parse(image, t)
 ```
 
 #### lidar
-todo
+you can use `PointCloudParser` to parse and save pointclouds in `output_path`.
+```python
+from record_msg.parser import PointCloudParser
+
+pointcloud_parser = PointCloudParser('../test')
+for topic, message, t in record.read_messages():
+  if topic == "/apollo/sensor/lidar32/compensator/PointCloud2":
+    pointcloud_parser.parse(message)
+    # other modes, default is 'ascii'
+    # pointcloud_parser.parse(message, mode='binary')
+    # pointcloud_parser.parse(message, mode='binary_compressed')
+```
