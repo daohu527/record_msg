@@ -7,6 +7,9 @@ record message parse helper function
 #### csv format
 you can use `to_csv` to format objects so that they can be easily saved in csv format.
 ```python
+import csv
+from record_msg.parser import to_csv
+
 f = open("message.csv", 'w')
 writer = csv.writer(f)
 
@@ -23,6 +26,8 @@ f.close()
 #### image
 you can use `ImageParser` to parse and save images in `output_path`.
 ```python
+from record_msg.parser import ImageParser
+
 image_parser = ImageParser(output_path='../test')
 for topic, message, t in record.read_messages():
   if topic == "/apollo/sensor/camera/front_6mm/image":
