@@ -37,6 +37,8 @@ import os
 
 from functools import reduce
 
+import pypcd
+
 
 def to_csv(msg):
   """Flatten the properties of the object, output as an array
@@ -171,10 +173,17 @@ class PointCloudParser(Parser):
     pc = pypcd.PointCloud(md, pc_data)
     return pc
 
-  def save_pointcloud_meta_to_file(self, pc_meta, pcd_file):
-    pypcd.save_point_cloud_bin_compressed(pc_meta, pcd_file)
+  def save_pointcloud_meta_to_file(self, pc_meta, pcd_file, mode):
+    if mode == 'ascii':
+      pypcd.save_point_cloud(pc_meta, pcd_file)
+    elif mode == 'binary':
+      pypcd.save_point_cloud_bin(pc_meta, pcd_file)
+    elif mode == 'binary_compressed':
+      pypcd.save_point_cloud_bin_compressed(pc_meta, pcd_file)
+    else:
+      print("Unknown point cloud format!")
 
-  def parse_sensor_message(self, pointcloud, file_name=None):
+  def parse_sensor_message(self, pointcloud, file_name=None, mode='ascii'):
     """
     Transform protobuf PointXYZIT to standard PCL bin_compressed_file(*.pcd).
     """
@@ -186,6 +195,7 @@ class PointCloudParser(Parser):
       else:
         file_name = str(file_name) + self._suffix
       output_file = os.path.join(self._output_path, file_name)
-      self.save_pointcloud_meta_to_file(pc_meta=self._parsed_data, pcd_file=output_file)
+      self.save_pointcloud_meta_to_file(pc_meta=self._parsed_data, \
+          pcd_file=output_file, mode=mode)
       self._msg_count += 1
     return self._parsed_data
