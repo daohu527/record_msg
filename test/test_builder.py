@@ -33,5 +33,5 @@ def test_point_cloud_builder():
 
 
 if __name__ == '__main__':
-  test_image_builder()
+  # test_image_builder()
   test_point_cloud_builder()

@@ -28,15 +28,14 @@ class Builder(object):
   def __init__(self) -> None:
     self._frame_id = 0
 
-  def _build_header(self, t):
-    header = header_pb2.Header()
+  def _build_header(self, header, t):
     header.timestamp_sec = t
     header.module_name = 'camera'
     header.sequence_num = self._frame_id
-    header.camera_timestamp = t * 1e9
+    header.camera_timestamp = int(t * 1e9)
+    header.lidar_timestamp = int(t * 1e9)
     header.version = 1
-    header.frame_id = self._frame_id
-    return header
+    header.frame_id = str(self._frame_id)
 
 
 class ImageBuilder(Builder):
@@ -58,12 +57,11 @@ class ImageBuilder(Builder):
     if flag is None:
       return
 
-    pb_image.frame_id = self._frame_id
     if t is None:
       t = time.time()
 
-    pb_image.header = self._build_header(t)
-    pb_image.frame_id = self._frame_id
+    self._build_header(pb_image.header, t)
+    pb_image.frame_id = str(self._frame_id)
     pb_image.measurement_time = t
     pb_image.encoding = encoding
 
@@ -95,19 +93,19 @@ class PointCloudBuilder(Builder):
     if t is None:
       t = time.time()
 
-    pb_point_cloud.header = self._build_header(t)
-    pb_point_cloud.frame_id = self._frame_id
+    self._build_header(pb_point_cloud.header, t)
+    pb_point_cloud.frame_id = str(self._frame_id)
     # pb_point_cloud.is_dense = False
     pb_point_cloud.measurement_time = t
 
-    point_cloud = pypcd.point_cloud_from_fileobj(file_name)
+    point_cloud = pypcd.point_cloud_from_path(file_name)
 
     pb_point_cloud.width = point_cloud.width
     pb_point_cloud.height = point_cloud.height
 
     for data in point_cloud.pc_data:
       point = pb_point_cloud.point.add()
-      point.x, point.y, point.z, point.intensity, point.timestamp = data
-      point.timestamp /= 1e9
+      point.x, point.y, point.z, point.intensity, timestamp = data
+      point.timestamp = int(timestamp * 1e9)
 
     return pb_point_cloud
