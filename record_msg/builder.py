@@ -17,6 +17,7 @@
 
 import cv2
 import time
+import os
 
 from record_msg import pypcd
 
@@ -52,6 +53,9 @@ class ImageBuilder(Builder):
       return None
 
   def build(self, file_name, encoding, t=None):
+    assert os.path.exists(file_name), \
+        "Pls check the file `{}` exist!".format(file_name)
+
     pb_image = sensor_image_pb2.Image()
     flag = self._to_flag(encoding)
     if flag is None:
