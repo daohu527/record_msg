@@ -17,26 +17,62 @@
 
 import cv2
 import time
-import os
+import numpy as np
 
 from record_msg import pypcd
 
-from modules.common.proto import header_pb2
 from modules.drivers.proto import sensor_image_pb2, pointcloud_pb2
+from modules.localization.proto import localization_pb2
 
 
 class Builder(object):
   def __init__(self) -> None:
-    self._frame_id = 0
+    self._sequence_num = 0
 
-  def _build_header(self, header, t):
-    header.timestamp_sec = t
-    header.module_name = 'camera'
-    header.sequence_num = self._frame_id
-    header.camera_timestamp = int(t * 1e9)
-    header.lidar_timestamp = int(t * 1e9)
-    header.version = 1
-    header.frame_id = str(self._frame_id)
+  def _build_header(self, header,
+      t=None, module_name=None, version=None, frame_id=None):
+    header.sequence_num = self._sequence_num
+    if t:
+      header.timestamp_sec = t
+      # todo(zero): no need to add?
+      # header.camera_timestamp = int(t * 1e9)
+      # header.lidar_timestamp = int(t * 1e9)
+    if module_name:
+      header.module_name = module_name
+    if version:
+      header.version = version
+    if frame_id:
+      header.frame_id = frame_id
+
+
+class LocalizationBuilder(Builder):
+  def __init__(self) -> None:
+    super().__init__()
+
+  def build(self, translation, rotation, t):
+    pb_localization = localization_pb2.LocalizationEstimate()
+    if t is None:
+      t = time.time()
+
+    self._build_header(pb_localization.header, t=t, module_name='localization')
+    pb_localization.pose.position.x = translation[0]
+    pb_localization.pose.position.y = translation[1]
+    pb_localization.pose.position.z = translation[2]
+
+    pb_localization.pose.orientation.qw = rotation[0]
+    pb_localization.pose.orientation.qx = rotation[1]
+    pb_localization.pose.orientation.qy = rotation[2]
+    pb_localization.pose.orientation.qz = rotation[3]
+
+    # todo(zero):
+    # pb_localization.pose.linear_velocity
+    # pb_localization.pose.linear_acceleration
+    # pb_localization.pose.angular_velocity
+    # pb_localization.pose.heading
+
+    pb_localization.measurement_time = t
+    self._sequence_num += 1
+    return pb_localization
 
 
 class ImageBuilder(Builder):
@@ -52,10 +88,7 @@ class ImageBuilder(Builder):
       print('Unsupported image encoding type: %s.' % encoding)
       return None
 
-  def build(self, file_name, encoding, t=None):
-    assert os.path.exists(file_name), \
-        "Pls check the file `{}` exist!".format(file_name)
-
+  def build(self, file_name, frame_id, encoding, t=None):
     pb_image = sensor_image_pb2.Image()
     flag = self._to_flag(encoding)
     if flag is None:
@@ -64,8 +97,8 @@ class ImageBuilder(Builder):
     if t is None:
       t = time.time()
 
-    self._build_header(pb_image.header, t)
-    pb_image.frame_id = str(self._frame_id)
+    self._build_header(pb_image.header, frame_id=frame_id)
+    pb_image.frame_id = frame_id
     pb_image.measurement_time = t
     pb_image.encoding = encoding
 
@@ -83,7 +116,7 @@ class ImageBuilder(Builder):
     #   return
 
     pb_image.data = img.tostring()
-    self._frame_id += 1
+    self._sequence_num += 1
     return pb_image
 
 
@@ -91,14 +124,14 @@ class PointCloudBuilder(Builder):
   def __init__(self) -> None:
     super().__init__()
 
-  def build(self, file_name, t=None):
+  def build(self, file_name, frame_id, t=None):
     pb_point_cloud = pointcloud_pb2.PointCloud()
 
     if t is None:
       t = time.time()
 
-    self._build_header(pb_point_cloud.header, t)
-    pb_point_cloud.frame_id = str(self._frame_id)
+    self._build_header(pb_point_cloud.header, t=t, frame_id=frame_id)
+    pb_point_cloud.frame_id = frame_id
     # pb_point_cloud.is_dense = False
     pb_point_cloud.measurement_time = t
 
@@ -112,4 +145,41 @@ class PointCloudBuilder(Builder):
       point.x, point.y, point.z, point.intensity, timestamp = data
       point.timestamp = int(timestamp * 1e9)
 
+    self._sequence_num += 1
+    return pb_point_cloud
+
+  def build_nuscenes(self, file_name, frame_id, t=None):
+    pb_point_cloud = pointcloud_pb2.PointCloud()
+
+    if t is None:
+      t = time.time()
+
+    self._build_header(pb_point_cloud.header, t=t, frame_id=frame_id)
+    pb_point_cloud.frame_id = frame_id
+    # pb_point_cloud.is_dense = False
+    pb_point_cloud.measurement_time = t
+
+    # Loads LIDAR data from binary numpy format.
+    # Data is stored as (x, y, z, intensity, ring index).
+    scan = np.fromfile(file_name, dtype=np.float32)
+    points = scan.reshape((-1, 5))[:, :4]
+    points = np.array(points, dtype=np.dtype([
+      ('x', np.float32),
+      ('y', np.float32),
+      ('z', np.float32),
+      ('intensity', np.uint32)]))
+    print(np.shape(points))
+    print(points.dtype)
+
+    point_cloud = pypcd.PointCloud.from_array(points)
+
+    pb_point_cloud.width = point_cloud.width
+    pb_point_cloud.height = point_cloud.height
+
+    # print(type(point_cloud.pc_data))
+    for data in point_cloud.pc_data:
+      point = pb_point_cloud.point.add()
+      point.x, point.y, point.z, point.intensity = data[0]
+
+    self._sequence_num += 1
     return pb_point_cloud
