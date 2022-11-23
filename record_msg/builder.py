@@ -17,6 +17,7 @@
 
 import cv2
 import time
+import logging
 import numpy as np
 
 from record_msg import pypcd
@@ -64,7 +65,7 @@ class LocalizationBuilder(Builder):
     pb_localization.pose.orientation.qy = rotation[2]
     pb_localization.pose.orientation.qz = rotation[3]
 
-    # todo(zero):
+    # todo(zero): need to complete
     # pb_localization.pose.linear_velocity
     # pb_localization.pose.linear_acceleration
     # pb_localization.pose.angular_velocity
@@ -162,24 +163,19 @@ class PointCloudBuilder(Builder):
     # Loads LIDAR data from binary numpy format.
     # Data is stored as (x, y, z, intensity, ring index).
     scan = np.fromfile(file_name, dtype=np.float32)
+    logging.debug(scan[:100])
+
     points = scan.reshape((-1, 5))[:, :4]
-    points = np.array(points, dtype=np.dtype([
-      ('x', np.float32),
-      ('y', np.float32),
-      ('z', np.float32),
-      ('intensity', np.uint32)]))
-    print(np.shape(points))
-    print(points.dtype)
+    logging.debug("points: {},{}".format(np.shape(points), points.dtype))
 
-    point_cloud = pypcd.PointCloud.from_array(points)
+    pb_point_cloud.width = len(points)
+    pb_point_cloud.height = 1
 
-    pb_point_cloud.width = point_cloud.width
-    pb_point_cloud.height = point_cloud.height
-
-    # print(type(point_cloud.pc_data))
-    for data in point_cloud.pc_data:
+    # Points shape is (length, 4)
+    n0, _ = np.shape(points)
+    for i in range(n0):
       point = pb_point_cloud.point.add()
-      point.x, point.y, point.z, point.intensity = data[0]
-
+      point.x, point.y, point.z, intensity = points[i]
+      point.intensity = int(intensity)
     self._sequence_num += 1
     return pb_point_cloud
