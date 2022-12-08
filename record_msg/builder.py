@@ -51,7 +51,8 @@ class TransformBuilder(Builder):
     super().__init__()
 
   def build(self, frame_id, child_frame_id, translation, rotation, t):
-    pb_transformstamped = transform_pb2.TransformStamped()
+    pb_transformstampeds = transform_pb2.TransformStampeds()
+    pb_transformstamped = pb_transformstampeds.transforms.add()
     if t is None:
       t = time.time()
 
@@ -67,7 +68,7 @@ class TransformBuilder(Builder):
     pb_transformstamped.transform.rotation.qz = rotation[3]
 
     self._sequence_num += 1
-    return pb_transformstamped
+    return pb_transformstampeds
 
 
 class LocalizationBuilder(Builder):
