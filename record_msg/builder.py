@@ -24,7 +24,7 @@ from record_msg import pypcd
 
 from modules.drivers.proto import sensor_image_pb2, pointcloud_pb2
 from modules.localization.proto import localization_pb2
-
+from modules.transform.proto import transform_pb2
 
 class Builder(object):
   def __init__(self) -> None:
@@ -44,6 +44,30 @@ class Builder(object):
       header.version = version
     if frame_id:
       header.frame_id = frame_id
+
+
+class TransformBuilder(Builder):
+  def __init__(self) -> None:
+    super().__init__()
+
+  def build(self, frame_id, child_frame_id, translation, rotation, t):
+    pb_transformstamped = transform_pb2.TransformStamped()
+    if t is None:
+      t = time.time()
+
+    self._build_header(pb_transformstamped.header, t=t, frame_id=frame_id)
+    pb_transformstamped.child_frame_id = child_frame_id
+    pb_transformstamped.transform.translation.x = translation[0]
+    pb_transformstamped.transform.translation.y = translation[1]
+    pb_transformstamped.transform.translation.z = translation[2]
+
+    pb_transformstamped.transform.rotation.qw = rotation[0]
+    pb_transformstamped.transform.rotation.qx = rotation[1]
+    pb_transformstamped.transform.rotation.qy = rotation[2]
+    pb_transformstamped.transform.rotation.qz = rotation[3]
+
+    self._sequence_num += 1
+    return pb_transformstamped
 
 
 class LocalizationBuilder(Builder):
