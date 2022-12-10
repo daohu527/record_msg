@@ -174,7 +174,7 @@ class PointCloudBuilder(Builder):
     self._sequence_num += 1
     return pb_point_cloud
 
-  def build_nuscenes(self, file_name, frame_id, t=None):
+  def build_nuscenes(self, file_name, frame_id, t=None, rotation=None):
     pb_point_cloud = pointcloud_pb2.PointCloud()
 
     if t is None:
@@ -200,7 +200,8 @@ class PointCloudBuilder(Builder):
     n0, _ = np.shape(points)
     for i in range(n0):
       point = pb_point_cloud.point.add()
-      point.x, point.y, point.z, intensity = points[i]
+      intensity = points[i][3]
+      point.x, point.y, point.z = rotation.dot(points[i][:3])
       point.intensity = int(intensity)
     self._sequence_num += 1
     return pb_point_cloud
