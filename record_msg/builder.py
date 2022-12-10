@@ -14,11 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import cv2
-import time
 import logging
 import numpy as np
+import time
 
 from record_msg import pypcd
 
@@ -75,7 +74,7 @@ class LocalizationBuilder(Builder):
   def __init__(self) -> None:
     super().__init__()
 
-  def build(self, translation, rotation, t):
+  def build(self, translation, rotation, heading, t):
     pb_localization = localization_pb2.LocalizationEstimate()
     if t is None:
       t = time.time()
@@ -90,11 +89,12 @@ class LocalizationBuilder(Builder):
     pb_localization.pose.orientation.qy = rotation[2]
     pb_localization.pose.orientation.qz = rotation[3]
 
+    pb_localization.pose.heading = heading
+
     # todo(zero): need to complete
     # pb_localization.pose.linear_velocity
     # pb_localization.pose.linear_acceleration
     # pb_localization.pose.angular_velocity
-    # pb_localization.pose.heading
 
     pb_localization.measurement_time = t
     self._sequence_num += 1
