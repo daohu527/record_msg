@@ -130,16 +130,14 @@ class ImageBuilder(Builder):
 
     img = cv2.imread(file_name, flag)
 
-    pb_image.height, pb_image.width, channels = img.shape
-    pb_image.step = pb_image.width * channels
-
-    # todo(zero): which one is right?
-    # if flag == cv2.IMREAD_COLOR:
-    #   pb_image.step = pb_image.width * 3
-    # elif flag == cv2.IMREAD_GRAYSCALE:
-    #   pb_image.step = pb_image.width
-    # else:
-    #   return
+    if flag == cv2.IMREAD_COLOR:
+      pb_image.height, pb_image.width, channels = img.shape
+      pb_image.step = pb_image.width * channels
+    elif flag == cv2.IMREAD_GRAYSCALE:
+      pb_image.height, pb_image.width = img.shape
+      pb_image.step = pb_image.width
+    else:
+      return
 
     pb_image.data = img.tostring()
     self._sequence_num += 1
@@ -147,8 +145,9 @@ class ImageBuilder(Builder):
 
 
 class PointCloudBuilder(Builder):
-  def __init__(self) -> None:
+  def __init__(self, dim=4) -> None:
     super().__init__()
+    self._dim = dim
 
   def build(self, file_name, frame_id, t=None):
     pb_point_cloud = pointcloud_pb2.PointCloud()
@@ -174,7 +173,7 @@ class PointCloudBuilder(Builder):
     self._sequence_num += 1
     return pb_point_cloud
 
-  def build_nuscenes(self, file_name, frame_id, t=None, rotation=None):
+  def build_nuscenes(self, file_name, frame_id, t=None, lidar_transform=None):
     pb_point_cloud = pointcloud_pb2.PointCloud()
 
     if t is None:
@@ -190,8 +189,7 @@ class PointCloudBuilder(Builder):
     scan = np.fromfile(file_name, dtype=np.float32)
     logging.debug(scan[:100])
 
-    points = scan.reshape((-1, 5))[:, :4]
-    logging.debug("points: {},{}".format(np.shape(points), points.dtype))
+    points = scan.reshape((-1, self._dim))[:, :4]
 
     pb_point_cloud.width = len(points)
     pb_point_cloud.height = 1
@@ -200,8 +198,8 @@ class PointCloudBuilder(Builder):
     n0, _ = np.shape(points)
     for i in range(n0):
       point = pb_point_cloud.point.add()
-      intensity = points[i][3]
-      point.x, point.y, point.z = rotation.dot(points[i][:3])
-      point.intensity = int(intensity)
+      point.intensity = int(points[i][3])
+      points[i][3] = 1
+      point.x, point.y, point.z, _ = lidar_transform.dot(points[i])
     self._sequence_num += 1
     return pb_point_cloud
