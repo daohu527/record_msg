@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="record_msg",
-    version="0.1.0",
+    version="1.0.0",
     author="daohu527",
     author_email="daohu527@gmail.com",
     description="Record message parse helper function",

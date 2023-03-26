@@ -22,9 +22,9 @@ import numpy as np
 
 from record_msg import pypcd
 
-from modules.drivers.proto import sensor_image_pb2, pointcloud_pb2
-from modules.localization.proto import localization_pb2
-from modules.transform.proto import transform_pb2
+from modules.common_msgs.sensor_msgs import sensor_image_pb2, pointcloud_pb2
+from modules.common_msgs.localization_msgs import localization_pb2
+from modules.common_msgs.transform_msgs import transform_pb2
 
 class Builder(object):
   def __init__(self) -> None:
