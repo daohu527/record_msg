@@ -200,6 +200,6 @@ class PointCloudBuilder(Builder):
       point = pb_point_cloud.point.add()
       point.intensity = int(points[i][3])
       points[i][3] = 1
-      point.x, point.y, point.z, _ = points[i] @ lidar_transform
+      point.x, point.y, point.z, _ = lidar_transform @ points[i]
     self._sequence_num += 1
     return pb_point_cloud
