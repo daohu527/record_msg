@@ -216,7 +216,12 @@ class PointCloudBuilder(Builder):
 
     # Loads LIDAR data from binary numpy format.
     # Data is stored as (x, y, z, intensity, ring index).
-    scan = np.fromfile(file_name, dtype=np.float32)
+    if file_name.endswith('.bin'):
+      scan = np.fromfile(file_name, dtype=np.float32)
+    elif file_name.endswith('.txt'):
+      scan = np.loadtxt(file_name, dtype=np.float32)
+    else:
+      raise "Unsupported file extension."
     logging.debug(scan[:100])
 
     points = scan.reshape((-1, self._dim))[:, :4]
