@@ -24,7 +24,7 @@ setuptools.setup(
     packages=setuptools.find_packages(where="."),
     install_requires=[
         'opencv-python',
-        'lzf',
+        'python-lzf',
     ],
     python_requires=">=3.6",
 )
