@@ -1,5 +1,3 @@
-# https://github.com/ApolloAuto/apollo/blob/master/modules/drivers/gnss/util/time_conversion.h
-
 # /******************************************************************************
 #  * Copyright 2017 The Apollo Authors. All Rights Reserved.
 #  *
