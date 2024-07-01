@@ -21,9 +21,11 @@ import time
 
 from record_msg import pypcd
 
-from modules.common_msgs.sensor_msgs import sensor_image_pb2, pointcloud_pb2
+from modules.common_msgs.sensor_msgs import sensor_image_pb2, pointcloud_pb2, imu_pb2
 from modules.common_msgs.localization_msgs import localization_pb2
 from modules.common_msgs.transform_msgs import transform_pb2
+
+from record_msg.time_conversion import unix2gps
 
 class Builder(object):
   def __init__(self) -> None:
@@ -100,6 +102,34 @@ class LocalizationBuilder(Builder):
     self._sequence_num += 1
     return pb_localization
 
+class IMUBuilder(Builder):
+  def __init__(self) -> None:
+    super().__init__()
+
+  def build(self, linear_acceleration, angular_velocity, t, measurement_time = None, measurement_span = None):
+    pb_imu = imu_pb2.Imu()
+    if t is None:
+      t = time.time()
+    self._build_header(pb_imu.header, t=t)
+
+    if measurement_time is not None:
+      pb_imu.measurement_time = measurement_time
+    else:
+      pb_imu.measurement_time = unix2gps(t)
+
+    if measurement_span is not None:
+      pb_imu.measurement_span = measurement_span
+
+    pb_imu.linear_acceleration.x = linear_acceleration[0]
+    pb_imu.linear_acceleration.y = linear_acceleration[1]
+    pb_imu.linear_acceleration.z = linear_acceleration[2]
+
+    pb_imu.angular_velocity.x = angular_velocity[0]
+    pb_imu.angular_velocity.y = angular_velocity[1]
+    pb_imu.angular_velocity.z = angular_velocity[2]
+
+    self._sequence_num += 1
+    return pb_imu
 
 class ImageBuilder(Builder):
   def __init__(self) -> None:
@@ -186,7 +216,12 @@ class PointCloudBuilder(Builder):
 
     # Loads LIDAR data from binary numpy format.
     # Data is stored as (x, y, z, intensity, ring index).
-    scan = np.fromfile(file_name, dtype=np.float32)
+    if file_name.endswith('.bin'):
+      scan = np.fromfile(file_name, dtype=np.float32)
+    elif file_name.endswith('.txt'):
+      scan = np.loadtxt(file_name, dtype=np.float32)
+    else:
+      raise "Unsupported file extension."
     logging.debug(scan[:100])
 
     points = scan.reshape((-1, self._dim))[:, :4]
