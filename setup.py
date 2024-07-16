@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="record_msg",
-    version="0.1.2",
+    version="0.1.3",
     author="daohu527",
     author_email="daohu527@gmail.com",
     description="Record message parse helper function",
@@ -24,7 +24,7 @@ setuptools.setup(
     packages=setuptools.find_packages(where="."),
     install_requires=[
         'opencv-python',
-        'lzf',
+        'python-lzf',
     ],
     python_requires=">=3.6",
 )
