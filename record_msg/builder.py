@@ -203,7 +203,7 @@ class PointCloudBuilder(Builder):
     self._sequence_num += 1
     return pb_point_cloud
 
-  def build_nuscenes(self, file_name, frame_id, t=None, lidar_transform=None):
+  def build_nuscenes(self, file_name, frame_id, t=None, lidar_transform=np.identity(4)):
     pb_point_cloud = pointcloud_pb2.PointCloud()
 
     if t is None:
