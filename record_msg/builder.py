@@ -18,10 +18,11 @@ import cv2
 import logging
 import numpy as np
 import time
+from google.protobuf import json_format
 
 from record_msg import pypcd
 
-from modules.common_msgs.sensor_msgs import sensor_image_pb2, pointcloud_pb2, imu_pb2
+from modules.common_msgs.sensor_msgs import sensor_image_pb2, pointcloud_pb2, imu_pb2, gnss_best_pose_pb2
 from modules.common_msgs.localization_msgs import localization_pb2
 from modules.common_msgs.transform_msgs import transform_pb2
 
@@ -130,6 +131,28 @@ class IMUBuilder(Builder):
 
     self._sequence_num += 1
     return pb_imu
+
+class GnssBestPoseBuilder(Builder):
+  def __init__(self) -> None:
+    super().__init__()
+
+  def build(self, latitude, longitude, height_msl, undulation, t, **kwargs):
+    pb_gnss_best_pose = gnss_best_pose_pb2.GnssBestPose()
+    if t is None:
+      t = time.time()
+    self._build_header(pb_gnss_best_pose.header, t=t)
+
+    pb_gnss_best_pose.measurement_time = unix2gps(t) # It will be overridden if provided in kwargs
+
+    pb_gnss_best_pose.latitude = latitude
+    pb_gnss_best_pose.longitude = longitude
+    pb_gnss_best_pose.height_msl = height_msl
+    pb_gnss_best_pose.undulation = undulation
+
+    json_format.ParseDict(kwargs, pb_gnss_best_pose)
+
+    self._sequence_num += 1
+    return pb_gnss_best_pose
 
 class ImageBuilder(Builder):
   def __init__(self) -> None:
