@@ -25,7 +25,7 @@ from modules.common_msgs.sensor_msgs import sensor_image_pb2, pointcloud_pb2, im
 from modules.common_msgs.localization_msgs import localization_pb2
 from modules.common_msgs.transform_msgs import transform_pb2
 
-from record_msg.time_conversion import unix2gps
+from record_msg.time_conversion import Unix2Gps
 
 class Builder(object):
   def __init__(self) -> None:
@@ -115,7 +115,7 @@ class IMUBuilder(Builder):
     if measurement_time is not None:
       pb_imu.measurement_time = measurement_time
     else:
-      pb_imu.measurement_time = unix2gps(t)
+      pb_imu.measurement_time = Unix2Gps(t)
 
     if measurement_span is not None:
       pb_imu.measurement_span = measurement_span
