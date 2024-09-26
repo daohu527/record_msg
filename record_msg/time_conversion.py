@@ -112,3 +112,22 @@ def gps2unix(gps_seconds):
     if result >= seconds:
       return result
   return 0
+
+# There are two versions of time conversion in Apollo's source code
+# https://github.com/ApolloAuto/apollo/issues/15499
+# There is still no conclusion on which one is correct.
+# This version is correct for MSF Localization.
+UNIX_GPS_DIFF = 315964782
+LEAP_SECOND_TIMESTAMP = 1483228799
+
+def Unix2Gps(unix_time):
+    gps_time = unix_time - UNIX_GPS_DIFF
+    if (unix_time < LEAP_SECOND_TIMESTAMP):
+        gps_time -= 1.0
+    return gps_time
+
+def Gps2Unix(gps_time):
+    unix_time = gps_time + UNIX_GPS_DIFF
+    if (unix_time + 1 < LEAP_SECOND_TIMESTAMP):
+        unix_time += 1.0
+    return unix_time
