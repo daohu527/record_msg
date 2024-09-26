@@ -225,6 +225,8 @@ class PointCloudBuilder(Builder):
     logging.debug(scan[:100])
 
     points = scan.reshape((-1, self._dim))[:, :4]
+    intensities = (points[:, -1] * intensity_scale_factor).astype(np.uint8)
+    points = points @ lidar_transform
 
     pb_point_cloud.width = len(points)
     pb_point_cloud.height = 1
@@ -233,8 +235,8 @@ class PointCloudBuilder(Builder):
     n0, _ = np.shape(points)
     for i in range(n0):
       point = pb_point_cloud.point.add()
-      point.intensity = int(points[i][3] * intensity_scale_factor)
+      point.intensity = intensities[i]
       points[i][3] = 1
-      point.x, point.y, point.z, _ = points[i] @ lidar_transform
+      point.x, point.y, point.z, _ = points[i]
     self._sequence_num += 1
     return pb_point_cloud
