@@ -28,6 +28,8 @@ from modules.common_msgs.localization_msgs import localization_pb2
 from modules.common_msgs.transform_msgs import transform_pb2
 
 from record_msg.time_conversion import Unix2Gps
+from google.protobuf import json_format
+from typing import Optional, Any
 
 class Builder(object):
   def __init__(self) -> None:
@@ -132,6 +134,68 @@ class IMUBuilder(Builder):
 
     self._sequence_num += 1
     return pb_imu
+
+
+class GnssBestPoseBuilder(Builder):
+  """Builder for `GnssBestPose` protobuf message.
+
+  This provides a small, well-documented facade that sets required fields
+  (latitude, longitude, height_msl, undulation) and allows any other
+  optional fields to be passed via `kwargs`. Unknown fields in `kwargs`
+  are ignored to remain forward compatible with proto changes.
+
+  Validation is intentionally lightweight: it ensures types are numeric and
+  latitude/longitude are within valid ranges. Caller responsibility: verify
+  semantics (e.g. coordinate frames) where needed.
+  """
+
+  def __init__(self) -> None:
+    super().__init__()
+
+  def build(self,
+            latitude: float,
+            longitude: float,
+            height_msl: float,
+            undulation: float,
+            t: Optional[float] = None,
+            **kwargs: Any):
+    from modules.common_msgs.sensor_msgs import gnss_best_pose_pb2
+
+    # Basic type validation
+    for name, val in (('latitude', latitude), ('longitude', longitude),
+                      ('height_msl', height_msl), ('undulation', undulation)):
+      if not isinstance(val, (int, float)):
+        raise TypeError(f"{name} must be a number, got {type(val)}")
+
+    # Range checks for lat/lon
+    if not (-90.0 <= float(latitude) <= 90.0):
+      raise ValueError('latitude out of range [-90,90]')
+    if not (-180.0 <= float(longitude) <= 180.0):
+      raise ValueError('longitude out of range [-180,180]')
+
+    pb = gnss_best_pose_pb2.GnssBestPose()
+    if t is None:
+      t = time.time()
+
+    # Header and times
+    self._build_header(pb.header, t=t)
+    # measurement_time stored in GPS seconds
+    pb.measurement_time = Unix2Gps(t)
+
+    pb.latitude = float(latitude)
+    pb.longitude = float(longitude)
+    pb.height_msl = float(height_msl)
+    pb.undulation = float(undulation)
+
+    # Accept remaining optional fields; ignore unknown fields for forward compat
+    if kwargs:
+      try:
+        json_format.ParseDict(kwargs, pb, ignore_unknown_fields=True)
+      except Exception as e:
+        raise ValueError(f"failed parsing kwargs into GnssBestPose: {e}")
+
+    self._sequence_num += 1
+    return pb
 
 class ImageBuilder(Builder):
   def __init__(self) -> None:
