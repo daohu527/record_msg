@@ -18,11 +18,11 @@
 from record_msg.parser import to_csv
 
 
-def test_to_csv():
-  z = "1111"
-  y = ['a', 'b', z]
-  x = [1, 2, y]
-  print(to_csv(x))
+def test_to_csv_nested_lists():
+    x = [1, 2, ['a', 'b', '1111']]
+    assert to_csv(x) == [1, 2, 'a', 'b', '1111']
 
-if __name__ == '__main__':
-  test_to_csv()
+
+def test_to_csv_primitives():
+    assert to_csv(5) == [5]
+    assert to_csv('a') == ['a']

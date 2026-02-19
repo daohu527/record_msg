@@ -15,23 +15,26 @@
 # limitations under the License.
 
 
+import os
 from record_msg.builder import ImageBuilder, PointCloudBuilder
 
 
-def test_image_builder():
-  img_path = 'test.jpg'
-  image_builder = ImageBuilder()
-  pb_image = image_builder.build(img_path, encoding='rgb8')
-  print(pb_image)
+def test_image_builder_creates_message(tmp_path):
+    img_file = tmp_path / "img.jpg"
+    # file path is not used by the patched imread, but builder expects a path
+    img_file.write_text('')
+    builder = ImageBuilder()
+    pb_image = builder.build(str(img_file), frame_id='f0', encoding='rgb8')
+    assert pb_image is not None
+    assert pb_image.encoding == 'rgb8'
+    assert pb_image.width == 2 and pb_image.height == 2
 
 
-def test_point_cloud_builder():
-  point_cloud_path = 'test.pcd'
-  point_cloud_builder = PointCloudBuilder()
-  pb_point_cloud = point_cloud_builder.build(point_cloud_path)
-  print(pb_point_cloud)
-
-
-if __name__ == '__main__':
-  # test_image_builder()
-  test_point_cloud_builder()
+def test_point_cloud_builder_creates_message(tmp_path):
+    pcd_file = tmp_path / 'test.pcd'
+    pcd_file.write_text('')
+    builder = PointCloudBuilder()
+    pb_pc = builder.build(str(pcd_file), frame_id='pc0')
+    assert pb_pc is not None
+    assert pb_pc.width == 2
+    assert pb_pc.height == 1

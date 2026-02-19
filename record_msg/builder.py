@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cv2
+
+from PIL import Image
+import numpy as np
 import logging
 import numpy as np
 import time
@@ -136,10 +138,10 @@ class ImageBuilder(Builder):
     super().__init__()
 
   def _to_flag(self, encoding):
-    if encoding == 'rgb8' or encoding == 'bgr8':
-      return cv2.IMREAD_COLOR
-    elif encoding == 'gray' or encoding == 'y':
-      return cv2.IMREAD_GRAYSCALE
+    if encoding in ('rgb8', 'bgr8'):
+      return 'color'
+    elif encoding in ('gray', 'y'):
+      return 'grayscale'
     else:
       print('Unsupported image encoding type: %s.' % encoding)
       return None
@@ -158,18 +160,23 @@ class ImageBuilder(Builder):
     pb_image.measurement_time = t
     pb_image.encoding = encoding
 
-    img = cv2.imread(file_name, flag)
-
-    if flag == cv2.IMREAD_COLOR:
-      pb_image.height, pb_image.width, channels = img.shape
+    # Load image using Pillow for portability
+    pil_im = Image.open(file_name)
+    if flag == 'color':
+      pil_im = pil_im.convert('RGB')
+      arr = np.asarray(pil_im)
+      pb_image.height, pb_image.width, channels = arr.shape
       pb_image.step = pb_image.width * channels
-    elif flag == cv2.IMREAD_GRAYSCALE:
-      pb_image.height, pb_image.width = img.shape
+      pb_image.data = arr.tobytes()
+      # store encoding as requested
+    elif flag == 'grayscale':
+      pil_im = pil_im.convert('L')
+      arr = np.asarray(pil_im)
+      pb_image.height, pb_image.width = arr.shape
       pb_image.step = pb_image.width
+      pb_image.data = arr.tobytes()
     else:
       return
-
-    pb_image.data = img.tostring()
     self._sequence_num += 1
     return pb_image
 
