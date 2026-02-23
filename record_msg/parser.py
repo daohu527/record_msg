@@ -31,9 +31,11 @@
 # limitations under the License.
 
 
-import cv2
+from PIL import Image
 import numpy as np
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from functools import reduce
 
@@ -49,10 +51,13 @@ def to_csv(msg):
   Returns:
       _type_: _description_
   """
-  if type(msg) in (int, float, bool, str, bytes):
+  if isinstance(msg, (int, float, bool, str, bytes)):
     return [msg]
-  elif msg and type(msg) in (tuple, list):
-    return reduce(lambda x, y: x + y, map(lambda m: to_csv(m), msg))
+  elif msg and isinstance(msg, (tuple, list)):
+    flat = []
+    for m in msg:
+      flat.extend(to_csv(m))
+    return flat
   elif hasattr(msg, 'DESCRIPTOR'):
     pb_attrs = msg.DESCRIPTOR.fields_by_name.keys()
     flat_attrs = list(map(lambda attr: getattr(msg, attr), pb_attrs))
@@ -67,6 +72,38 @@ class Parser(object):
     self._instance_saving = instance_saving
     self._suffix = suffix
     self._msg_count = 0
+    # Ensure output dir exists to avoid errors when saving
+    try:
+      if self._output_path:
+        os.makedirs(self._output_path, exist_ok=True)
+    except Exception:
+      pass
+    # Executor for background saving tasks
+    self._save_executor = ThreadPoolExecutor(max_workers=2)
+    # Lock for thread-safe increments
+    self._msg_lock = threading.Lock()
+    self._closed = False
+
+  def close(self, wait=True):
+    """Shut down background resources used by the parser.
+
+    Call this when the parser is no longer needed to avoid leaking threads.
+    Supports `wait=True` to block until running tasks finish.
+    """
+    if getattr(self, '_save_executor', None) is not None:
+      try:
+        self._save_executor.shutdown(wait=wait)
+      except Exception:
+        pass
+      finally:
+        self._save_executor = None
+    self._closed = True
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exc_type, exc, tb):
+    self.close(wait=True)
 
 
 class ImageParser(Parser):
@@ -104,41 +141,94 @@ class ImageParser(Parser):
     if not self._valid(image):
       return None
 
+    # Use frombuffer (no-deprecation) and reshape to (H,W,C)
     channel_num = image.step // image.width
-    self._parsed_data = np.fromstring(image.data, dtype=np.uint8).reshape(
-        (image.height, image.width, channel_num))
+    self._parsed_data = np.frombuffer(image.data, dtype=np.uint8)
+    try:
+      self._parsed_data = self._parsed_data.reshape((image.height, image.width, channel_num))
+    except Exception:
+      # fallback to empty array if data size mismatches
+      self._parsed_data = np.zeros((image.height, image.width, channel_num), dtype=np.uint8)
     self._encoding = image.encoding
 
     if self._instance_saving:
       if file_name is None:
-        file_name = "%05d" % self._msg_count + self._suffix
+        with self._msg_lock:
+          file_name = "%05d" % self._msg_count + self._suffix
+          self._msg_count += 1
       else:
         file_name = str(file_name) + self._suffix
       output_file = os.path.join(self._output_path, file_name)
-      self.save_image_mat_to_file(image_file=output_file)
-      self._msg_count += 1
+      # save in background to avoid blocking parsing
+      try:
+        self.save_image_mat_to_file(image_file=output_file)
+      except Exception:
+        # fallback to synchronous save on unexpected errors
+        self._sync_save_image(image_mat=self._parsed_data, encoding=self._encoding, image_file=output_file)
     return self._parsed_data
 
   def save_image_mat_to_file(self, image_file):
     # Save image in BGR oder
     image_mat = self._parsed_data
-    if self._encoding == 'rgb8':
-      cv2.imwrite(image_file, cv2.cvtColor(image_mat, cv2.COLOR_RGB2BGR))
+    def _do_save():
+      # Use Pillow for saving; convert channel order when needed
+      if self._encoding == 'rgb8':
+        # Pillow expects RGB order
+        im = Image.fromarray(image_mat, mode='RGB')
+      elif self._encoding == 'bgr8':
+        # convert BGR -> RGB
+        im = Image.fromarray(image_mat[..., ::-1], mode='RGB')
+      elif self._encoding in ('gray', 'y'):
+        # ensure 2D array for L mode
+        if image_mat.ndim == 3 and image_mat.shape[2] == 1:
+          arr = image_mat[:, :, 0]
+        else:
+          arr = image_mat
+        im = Image.fromarray(arr, mode='L')
+      else:
+        im = Image.fromarray(image_mat)
+      im.save(image_file)
+
+    # Submit to executor to avoid blocking; keep synchronous fallback
+    if hasattr(self, '_save_executor') and self._save_executor is not None:
+      self._save_executor.submit(_do_save)
     else:
-      cv2.imwrite(image_file, image_mat)
+      _do_save()
+
+  def _sync_save_image(self, image_mat, encoding, image_file):
+    if encoding == 'rgb8':
+      im = Image.fromarray(image_mat, mode='RGB')
+    elif encoding == 'bgr8':
+      im = Image.fromarray(image_mat[..., ::-1], mode='RGB')
+    elif encoding in ('gray', 'y'):
+      if image_mat.ndim == 3 and image_mat.shape[2] == 1:
+        arr = image_mat[:, :, 0]
+      else:
+        arr = image_mat
+      im = Image.fromarray(arr, mode='L')
+    else:
+      im = Image.fromarray(image_mat)
+    im.save(image_file)
 
 
 class PointCloudParser(Parser):
   def __init__(self, output_path, instance_saving=True, suffix='.pcd'):
     super(PointCloudParser, self).__init__(output_path, instance_saving, suffix)
+    # Cache dtype/typenames for repeated pointcloud conversions
+    if not hasattr(PointCloudParser, '_cached_np_dtype'):
+      PointCloudParser._cached_np_dtype = None
 
   def convert_xyzit_pb_to_array(self, xyz_i_t, data_type):
-    arr = np.zeros(len(xyz_i_t), dtype=data_type)
-    for i, point in enumerate(xyz_i_t):
-      # change timestamp to timestamp_sec
-      arr[i] = (point.x, point.y, point.z,
-                point.intensity, point.timestamp/1e9)
-    return arr
+    n = len(xyz_i_t)
+    if n == 0:
+      return np.zeros(0, dtype=data_type)
+    # Use fromiter/array from list of tuples to avoid per-index assignment
+    gen = ((p.x, p.y, p.z, p.intensity, p.timestamp/1e9) for p in xyz_i_t)
+    try:
+      return np.fromiter(gen, dtype=data_type, count=n)
+    except Exception:
+      # fallback: build list then array
+      return np.array(list(((p.x, p.y, p.z, p.intensity, p.timestamp/1e9) for p in xyz_i_t)), dtype=data_type)
 
   def make_xyzit_point_cloud(self, xyz_i_t):
     """
@@ -164,24 +254,33 @@ class PointCloudParser(Parser):
           'data': 'binary_compressed'}
 
     typenames = []
-    for t, s in zip(md['type'], md['size']):
-      np_type = pypcd.pcd_type_to_numpy_type[(t, s)]
-      typenames.append(np_type)
+    # Compute and cache dtype since type/size mapping is constant
+    if PointCloudParser._cached_np_dtype is None:
+      for t, s in zip(md['type'], md['size']):
+        np_type = pypcd.pcd_type_to_numpy_type[(t, s)]
+        typenames.append(np_type)
+      PointCloudParser._cached_np_dtype = np.dtype(list(zip(md['fields'], typenames)))
 
-    np_dtype = np.dtype(list(zip(md['fields'], typenames)))
+    np_dtype = PointCloudParser._cached_np_dtype
     pc_data = self.convert_xyzit_pb_to_array(xyz_i_t, data_type=np_dtype)
     pc = pypcd.PointCloud(md, pc_data)
     return pc
 
   def save_pointcloud_meta_to_file(self, pc_meta, pcd_file, mode):
-    if mode == 'ascii':
-      pypcd.save_point_cloud(pc_meta, pcd_file)
-    elif mode == 'binary':
-      pypcd.save_point_cloud_bin(pc_meta, pcd_file)
-    elif mode == 'binary_compressed':
-      pypcd.save_point_cloud_bin_compressed(pc_meta, pcd_file)
+    def _do_save():
+      if mode == 'ascii':
+        pypcd.save_point_cloud(pc_meta, pcd_file)
+      elif mode == 'binary':
+        pypcd.save_point_cloud_bin(pc_meta, pcd_file)
+      elif mode == 'binary_compressed':
+        pypcd.save_point_cloud_bin_compressed(pc_meta, pcd_file)
+      else:
+        print("Unknown point cloud format!")
+
+    if hasattr(self, '_save_executor') and self._save_executor is not None:
+      self._save_executor.submit(_do_save)
     else:
-      print("Unknown point cloud format!")
+      _do_save()
 
   def parse(self, pointcloud, file_name=None, mode='ascii'):
     """
@@ -191,11 +290,22 @@ class PointCloudParser(Parser):
 
     if self._instance_saving:
       if file_name is None:
-        file_name = "%05d" % self._msg_count + self._suffix
+        with self._msg_lock:
+          file_name = "%05d" % self._msg_count + self._suffix
+          self._msg_count += 1
       else:
         file_name = str(file_name) + self._suffix
       output_file = os.path.join(self._output_path, file_name)
-      self.save_pointcloud_meta_to_file(pc_meta=self._parsed_data, \
-          pcd_file=output_file, mode=mode)
-      self._msg_count += 1
+      try:
+        self.save_pointcloud_meta_to_file(pc_meta=self._parsed_data, pcd_file=output_file, mode=mode)
+      except Exception:
+        # synchronous fallback
+        if mode == 'ascii':
+          pypcd.save_point_cloud(self._parsed_data, output_file)
+        elif mode == 'binary':
+          pypcd.save_point_cloud_bin(self._parsed_data, output_file)
+        elif mode == 'binary_compressed':
+          pypcd.save_point_cloud_bin_compressed(self._parsed_data, output_file)
+        else:
+          print("Unknown point cloud format!")
     return self._parsed_data

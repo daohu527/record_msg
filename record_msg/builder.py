@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cv2
-import logging
+
+from PIL import Image
 import numpy as np
+import logging
 import time
 
 from record_msg import pypcd
@@ -26,6 +27,8 @@ from modules.common_msgs.localization_msgs import localization_pb2
 from modules.common_msgs.transform_msgs import transform_pb2
 
 from record_msg.time_conversion import Unix2Gps
+from google.protobuf import json_format
+from typing import Optional, Any
 
 class Builder(object):
   def __init__(self) -> None:
@@ -131,15 +134,77 @@ class IMUBuilder(Builder):
     self._sequence_num += 1
     return pb_imu
 
+
+class GnssBestPoseBuilder(Builder):
+  """Builder for `GnssBestPose` protobuf message.
+
+  This provides a small, well-documented facade that sets required fields
+  (latitude, longitude, height_msl, undulation) and allows any other
+  optional fields to be passed via `kwargs`. Unknown fields in `kwargs`
+  are ignored to remain forward compatible with proto changes.
+
+  Validation is intentionally lightweight: it ensures types are numeric and
+  latitude/longitude are within valid ranges. Caller responsibility: verify
+  semantics (e.g. coordinate frames) where needed.
+  """
+
+  def __init__(self) -> None:
+    super().__init__()
+
+  def build(self,
+            latitude: float,
+            longitude: float,
+            height_msl: float,
+            undulation: float,
+            t: Optional[float] = None,
+            **kwargs: Any):
+    from modules.common_msgs.sensor_msgs import gnss_best_pose_pb2
+
+    # Basic type validation
+    for name, val in (('latitude', latitude), ('longitude', longitude),
+                      ('height_msl', height_msl), ('undulation', undulation)):
+      if not isinstance(val, (int, float)):
+        raise TypeError(f"{name} must be a number, got {type(val)}")
+
+    # Range checks for lat/lon
+    if not (-90.0 <= float(latitude) <= 90.0):
+      raise ValueError('latitude out of range [-90,90]')
+    if not (-180.0 <= float(longitude) <= 180.0):
+      raise ValueError('longitude out of range [-180,180]')
+
+    pb = gnss_best_pose_pb2.GnssBestPose()
+    if t is None:
+      t = time.time()
+
+    # Header and times
+    self._build_header(pb.header, t=t)
+    # measurement_time stored in GPS seconds
+    pb.measurement_time = Unix2Gps(t)
+
+    pb.latitude = float(latitude)
+    pb.longitude = float(longitude)
+    pb.height_msl = float(height_msl)
+    pb.undulation = float(undulation)
+
+    # Accept remaining optional fields; ignore unknown fields for forward compat
+    if kwargs:
+      try:
+        json_format.ParseDict(kwargs, pb, ignore_unknown_fields=True)
+      except Exception as e:
+        raise ValueError(f"failed parsing kwargs into GnssBestPose: {e}")
+
+    self._sequence_num += 1
+    return pb
+
 class ImageBuilder(Builder):
   def __init__(self) -> None:
     super().__init__()
 
   def _to_flag(self, encoding):
-    if encoding == 'rgb8' or encoding == 'bgr8':
-      return cv2.IMREAD_COLOR
-    elif encoding == 'gray' or encoding == 'y':
-      return cv2.IMREAD_GRAYSCALE
+    if encoding in ('rgb8', 'bgr8'):
+      return 'color'
+    elif encoding in ('gray', 'y'):
+      return 'grayscale'
     else:
       print('Unsupported image encoding type: %s.' % encoding)
       return None
@@ -158,18 +223,23 @@ class ImageBuilder(Builder):
     pb_image.measurement_time = t
     pb_image.encoding = encoding
 
-    img = cv2.imread(file_name, flag)
-
-    if flag == cv2.IMREAD_COLOR:
-      pb_image.height, pb_image.width, channels = img.shape
+    # Load image using Pillow for portability
+    pil_im = Image.open(file_name)
+    if flag == 'color':
+      pil_im = pil_im.convert('RGB')
+      arr = np.asarray(pil_im)
+      pb_image.height, pb_image.width, channels = arr.shape
       pb_image.step = pb_image.width * channels
-    elif flag == cv2.IMREAD_GRAYSCALE:
-      pb_image.height, pb_image.width = img.shape
+      pb_image.data = arr.tobytes()
+      # store encoding as requested
+    elif flag == 'grayscale':
+      pil_im = pil_im.convert('L')
+      arr = np.asarray(pil_im)
+      pb_image.height, pb_image.width = arr.shape
       pb_image.step = pb_image.width
+      pb_image.data = arr.tobytes()
     else:
       return
-
-    pb_image.data = img.tostring()
     self._sequence_num += 1
     return pb_image
 

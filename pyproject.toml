@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "record_msg"
+version = "1.0.1"
+description = "Record message parse helper function"
+readme = "README.md"
+requires-python = ">=3.6"
+license = { text = "Apache Software License" }
+authors = [
+  { name = "daohu527", email = "daohu527@gmail.com" },
+]
+dependencies = [
+  "Pillow>=9.0",
+  "python-lzf",
+  "numpy",
+  "protobuf==3.20.3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/daohu527/record_msg/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+markers = [
+  "integration: marks tests as integration tests",
+]
