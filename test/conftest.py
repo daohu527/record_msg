@@ -1,3 +1,19 @@
+#!/usr/bin/env python
+
+# Copyright 2026 daohu527 <daohu527@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import numpy as np
 import types
 import pytest
@@ -40,7 +56,7 @@ def fake_pypcd_module():
 
     def point_cloud_from_path(fname):
         # return a tiny pointcloud with two points and timestamps
-        pts = [ (1.0, 2.0, 3.0, 10, 1.234), (4.0, 5.0, 6.0, 20, 2.345) ]
+        pts = [(1.0, 2.0, 3.0, 10, 1.234), (4.0, 5.0, 6.0, 20, 2.345)]
         return FakePointCloud(pts)
 
     m.point_cloud_from_path = point_cloud_from_path
@@ -48,21 +64,24 @@ def fake_pypcd_module():
 
 
 @pytest.fixture(autouse=True)
-def patch_builder_modules(monkeypatch, request, fake_cv2_module, fake_pypcd_module, small_rgb_image):
+def patch_builder_modules(
+    monkeypatch, request, fake_cv2_module, fake_pypcd_module, small_rgb_image
+):
     # Allow integration tests to opt-out of the autouse patching by adding
     # the marker @pytest.mark.integration to the test. Unit tests will be
     # patched to avoid disk I/O and cv2 dependency.
-    if request.node.get_closest_marker('integration'):
+    if request.node.get_closest_marker("integration"):
         # integration tests should use real files and real modules
         yield
         return
 
     # Patch the modules used by record_msg.builder to avoid disk I/O and cv2 dependency
     import record_msg.builder as builder
+
     # set cv2 attribute if present or not (raising=False so attribute is created)
-    monkeypatch.setattr(builder, 'cv2', fake_cv2_module, raising=False)
+    monkeypatch.setattr(builder, "cv2", fake_cv2_module, raising=False)
     # patch pypcd used by builder
-    monkeypatch.setattr(builder, 'pypcd', fake_pypcd_module)
+    monkeypatch.setattr(builder, "pypcd", fake_pypcd_module)
     # Patch PIL.Image.open used by builder to return an image constructed from the
     # synthetic numpy array so tests don't need real files.
     from PIL import Image as PILImage
@@ -70,5 +89,5 @@ def patch_builder_modules(monkeypatch, request, fake_cv2_module, fake_pypcd_modu
     def _fake_open(fp):
         return PILImage.fromarray(small_rgb_image)
 
-    monkeypatch.setattr(PILImage, 'open', _fake_open)
+    monkeypatch.setattr(PILImage, "open", _fake_open)
     yield

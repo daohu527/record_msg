@@ -86,9 +86,9 @@ LEAP_SECONDS = [
     (1341100800, 16),  # 2012/07/01
     (1230768000, 15),  # 2009/01/01
     (1136073600, 14),  # 2006/01/01
-    (915148800, 13),   # 1999/01/01
-    (867711600, 12),   # 1997/07/01
-    (820480320, 11),   # 1996/01/01
+    (915148800, 13),  # 1999/01/01
+    (867711600, 12),  # 1997/07/01
+    (820480320, 11),  # 1996/01/01
 ]
 
 # // seconds that UNIX time afront of GPS, without leap seconds.
@@ -100,18 +100,22 @@ LEAP_SECONDS = [
 # // 315964800 = 315993600 - 28800
 
 GPS_AND_SYSTEM_DIFF_SECONDS = 315964800
+
+
 def unix2gps(unix_seconds):
-  for seconds, leaps in LEAP_SECONDS:
-    if unix_seconds >= seconds:
-      return unix_seconds - (GPS_AND_SYSTEM_DIFF_SECONDS - leaps)
-  return 0
+    for seconds, leaps in LEAP_SECONDS:
+        if unix_seconds >= seconds:
+            return unix_seconds - (GPS_AND_SYSTEM_DIFF_SECONDS - leaps)
+    return 0
+
 
 def gps2unix(gps_seconds):
-  for seconds, leaps in LEAP_SECONDS:
-    result = gps_seconds + (GPS_AND_SYSTEM_DIFF_SECONDS - leaps)
-    if result >= seconds:
-      return result
-  return 0
+    for seconds, leaps in LEAP_SECONDS:
+        result = gps_seconds + (GPS_AND_SYSTEM_DIFF_SECONDS - leaps)
+        if result >= seconds:
+            return result
+    return 0
+
 
 # There are two versions of time conversion in Apollo's source code
 # https://github.com/ApolloAuto/apollo/issues/15499
@@ -120,14 +124,16 @@ def gps2unix(gps_seconds):
 UNIX_GPS_DIFF = 315964782
 LEAP_SECOND_TIMESTAMP = 1483228799
 
+
 def Unix2Gps(unix_time):
     gps_time = unix_time - UNIX_GPS_DIFF
-    if (unix_time < LEAP_SECOND_TIMESTAMP):
+    if unix_time < LEAP_SECOND_TIMESTAMP:
         gps_time -= 1.0
     return gps_time
 
+
 def Gps2Unix(gps_time):
     unix_time = gps_time + UNIX_GPS_DIFF
-    if (unix_time + 1 < LEAP_SECOND_TIMESTAMP):
+    if unix_time + 1 < LEAP_SECOND_TIMESTAMP:
         unix_time += 1.0
     return unix_time

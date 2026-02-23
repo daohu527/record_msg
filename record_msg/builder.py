@@ -30,283 +30,307 @@ from record_msg.time_conversion import Unix2Gps
 from google.protobuf import json_format
 from typing import Optional, Any
 
-class Builder(object):
-  def __init__(self) -> None:
-    self._sequence_num = 0
 
-  def _build_header(self, header,
-      t=None, module_name=None, version=None, frame_id=None):
-    header.sequence_num = self._sequence_num
-    if t:
-      header.timestamp_sec = t
-      # todo(zero): no need to add?
-      # header.camera_timestamp = int(t * 1e9)
-      # header.lidar_timestamp = int(t * 1e9)
-    if module_name:
-      header.module_name = module_name
-    if version:
-      header.version = version
-    if frame_id:
-      header.frame_id = frame_id
+class Builder(object):
+    def __init__(self) -> None:
+        self._sequence_num = 0
+
+    def _build_header(
+        self, header, t=None, module_name=None, version=None, frame_id=None
+    ):
+        header.sequence_num = self._sequence_num
+        if t is not None:
+            header.timestamp_sec = t
+            # todo(zero): no need to add?
+            # header.camera_timestamp = int(t * 1e9)
+            # header.lidar_timestamp = int(t * 1e9)
+        if module_name:
+            header.module_name = module_name
+        if version:
+            header.version = version
+        if frame_id:
+            header.frame_id = frame_id
 
 
 class TransformBuilder(Builder):
-  def __init__(self) -> None:
-    super().__init__()
+    def __init__(self) -> None:
+        super().__init__()
 
-  def build(self, frame_id, child_frame_id, translation, rotation, t):
-    pb_transformstampeds = transform_pb2.TransformStampeds()
-    pb_transformstamped = pb_transformstampeds.transforms.add()
-    if t is None:
-      t = time.time()
+    def build(self, frame_id, child_frame_id, translation, rotation, t):
+        pb_transformstampeds = transform_pb2.TransformStampeds()
+        pb_transformstamped = pb_transformstampeds.transforms.add()
+        if t is None:
+            t = time.time()
 
-    self._build_header(pb_transformstamped.header, t=t, frame_id=frame_id)
-    pb_transformstamped.child_frame_id = child_frame_id
-    pb_transformstamped.transform.translation.x = translation[0]
-    pb_transformstamped.transform.translation.y = translation[1]
-    pb_transformstamped.transform.translation.z = translation[2]
+        self._build_header(pb_transformstamped.header, t=t, frame_id=frame_id)
+        pb_transformstamped.child_frame_id = child_frame_id
+        pb_transformstamped.transform.translation.x = translation[0]
+        pb_transformstamped.transform.translation.y = translation[1]
+        pb_transformstamped.transform.translation.z = translation[2]
 
-    pb_transformstamped.transform.rotation.qw = rotation[0]
-    pb_transformstamped.transform.rotation.qx = rotation[1]
-    pb_transformstamped.transform.rotation.qy = rotation[2]
-    pb_transformstamped.transform.rotation.qz = rotation[3]
+        pb_transformstamped.transform.rotation.qw = rotation[0]
+        pb_transformstamped.transform.rotation.qx = rotation[1]
+        pb_transformstamped.transform.rotation.qy = rotation[2]
+        pb_transformstamped.transform.rotation.qz = rotation[3]
 
-    self._sequence_num += 1
-    return pb_transformstampeds
+        self._sequence_num += 1
+        return pb_transformstampeds
 
 
 class LocalizationBuilder(Builder):
-  def __init__(self) -> None:
-    super().__init__()
+    def __init__(self) -> None:
+        super().__init__()
 
-  def build(self, translation, rotation, heading, t):
-    pb_localization = localization_pb2.LocalizationEstimate()
-    if t is None:
-      t = time.time()
+    def build(self, translation, rotation, heading, t):
+        pb_localization = localization_pb2.LocalizationEstimate()
+        if t is None:
+            t = time.time()
 
-    self._build_header(pb_localization.header, t=t, module_name='localization')
-    pb_localization.pose.position.x = translation[0]
-    pb_localization.pose.position.y = translation[1]
-    pb_localization.pose.position.z = translation[2]
+        self._build_header(pb_localization.header, t=t, module_name="localization")
+        pb_localization.pose.position.x = translation[0]
+        pb_localization.pose.position.y = translation[1]
+        pb_localization.pose.position.z = translation[2]
 
-    pb_localization.pose.orientation.qw = rotation[0]
-    pb_localization.pose.orientation.qx = rotation[1]
-    pb_localization.pose.orientation.qy = rotation[2]
-    pb_localization.pose.orientation.qz = rotation[3]
+        pb_localization.pose.orientation.qw = rotation[0]
+        pb_localization.pose.orientation.qx = rotation[1]
+        pb_localization.pose.orientation.qy = rotation[2]
+        pb_localization.pose.orientation.qz = rotation[3]
 
-    pb_localization.pose.heading = heading
+        pb_localization.pose.heading = heading
 
-    # todo(zero): need to complete
-    # pb_localization.pose.linear_velocity
-    # pb_localization.pose.linear_acceleration
-    # pb_localization.pose.angular_velocity
+        # todo(zero): need to complete
+        # pb_localization.pose.linear_velocity
+        # pb_localization.pose.linear_acceleration
+        # pb_localization.pose.angular_velocity
 
-    pb_localization.measurement_time = t
-    self._sequence_num += 1
-    return pb_localization
+        pb_localization.measurement_time = t
+        self._sequence_num += 1
+        return pb_localization
+
 
 class IMUBuilder(Builder):
-  def __init__(self) -> None:
-    super().__init__()
+    def __init__(self) -> None:
+        super().__init__()
 
-  def build(self, linear_acceleration, angular_velocity, t, measurement_time = None, measurement_span = None):
-    pb_imu = imu_pb2.Imu()
-    if t is None:
-      t = time.time()
-    self._build_header(pb_imu.header, t=t)
+    def build(
+        self,
+        linear_acceleration,
+        angular_velocity,
+        t,
+        measurement_time=None,
+        measurement_span=None,
+    ):
+        pb_imu = imu_pb2.Imu()
+        if t is None:
+            t = time.time()
+        self._build_header(pb_imu.header, t=t)
 
-    if measurement_time is not None:
-      pb_imu.measurement_time = measurement_time
-    else:
-      pb_imu.measurement_time = Unix2Gps(t)
+        if measurement_time is not None:
+            pb_imu.measurement_time = measurement_time
+        else:
+            pb_imu.measurement_time = Unix2Gps(t)
 
-    if measurement_span is not None:
-      pb_imu.measurement_span = measurement_span
+        if measurement_span is not None:
+            pb_imu.measurement_span = measurement_span
 
-    pb_imu.linear_acceleration.x = linear_acceleration[0]
-    pb_imu.linear_acceleration.y = linear_acceleration[1]
-    pb_imu.linear_acceleration.z = linear_acceleration[2]
+        pb_imu.linear_acceleration.x = linear_acceleration[0]
+        pb_imu.linear_acceleration.y = linear_acceleration[1]
+        pb_imu.linear_acceleration.z = linear_acceleration[2]
 
-    pb_imu.angular_velocity.x = angular_velocity[0]
-    pb_imu.angular_velocity.y = angular_velocity[1]
-    pb_imu.angular_velocity.z = angular_velocity[2]
+        pb_imu.angular_velocity.x = angular_velocity[0]
+        pb_imu.angular_velocity.y = angular_velocity[1]
+        pb_imu.angular_velocity.z = angular_velocity[2]
 
-    self._sequence_num += 1
-    return pb_imu
+        self._sequence_num += 1
+        return pb_imu
 
 
 class GnssBestPoseBuilder(Builder):
-  """Builder for `GnssBestPose` protobuf message.
+    """Builder for `GnssBestPose` protobuf message.
 
-  This provides a small, well-documented facade that sets required fields
-  (latitude, longitude, height_msl, undulation) and allows any other
-  optional fields to be passed via `kwargs`. Unknown fields in `kwargs`
-  are ignored to remain forward compatible with proto changes.
+    This provides a small, well-documented facade that sets required fields
+    (latitude, longitude, height_msl, undulation) and allows any other
+    optional fields to be passed via `kwargs`. Unknown fields in `kwargs`
+    are ignored to remain forward compatible with proto changes.
 
-  Validation is intentionally lightweight: it ensures types are numeric and
-  latitude/longitude are within valid ranges. Caller responsibility: verify
-  semantics (e.g. coordinate frames) where needed.
-  """
+    Validation is intentionally lightweight: it ensures types are numeric and
+    latitude/longitude are within valid ranges. Caller responsibility: verify
+    semantics (e.g. coordinate frames) where needed.
+    """
 
-  def __init__(self) -> None:
-    super().__init__()
+    def __init__(self) -> None:
+        super().__init__()
 
-  def build(self,
-            latitude: float,
-            longitude: float,
-            height_msl: float,
-            undulation: float,
-            t: Optional[float] = None,
-            **kwargs: Any):
-    from modules.common_msgs.sensor_msgs import gnss_best_pose_pb2
+    def build(
+        self,
+        latitude: float,
+        longitude: float,
+        height_msl: float,
+        undulation: float,
+        t: Optional[float] = None,
+        **kwargs: Any,
+    ):
+        from modules.common_msgs.sensor_msgs import gnss_best_pose_pb2
 
-    # Basic type validation
-    for name, val in (('latitude', latitude), ('longitude', longitude),
-                      ('height_msl', height_msl), ('undulation', undulation)):
-      if not isinstance(val, (int, float)):
-        raise TypeError(f"{name} must be a number, got {type(val)}")
+        # Basic type validation
+        for name, val in (
+            ("latitude", latitude),
+            ("longitude", longitude),
+            ("height_msl", height_msl),
+            ("undulation", undulation),
+        ):
+            if not isinstance(val, (int, float)):
+                raise TypeError(f"{name} must be a number, got {type(val)}")
 
-    # Range checks for lat/lon
-    if not (-90.0 <= float(latitude) <= 90.0):
-      raise ValueError('latitude out of range [-90,90]')
-    if not (-180.0 <= float(longitude) <= 180.0):
-      raise ValueError('longitude out of range [-180,180]')
+        # Range checks for lat/lon
+        if not (-90.0 <= float(latitude) <= 90.0):
+            raise ValueError("latitude out of range [-90,90]")
+        if not (-180.0 <= float(longitude) <= 180.0):
+            raise ValueError("longitude out of range [-180,180]")
 
-    pb = gnss_best_pose_pb2.GnssBestPose()
-    if t is None:
-      t = time.time()
+        pb = gnss_best_pose_pb2.GnssBestPose()
+        if t is None:
+            t = time.time()
 
-    # Header and times
-    self._build_header(pb.header, t=t)
-    # measurement_time stored in GPS seconds
-    pb.measurement_time = Unix2Gps(t)
+        # Header and times
+        self._build_header(pb.header, t=t)
+        # measurement_time stored in GPS seconds
+        pb.measurement_time = Unix2Gps(t)
 
-    pb.latitude = float(latitude)
-    pb.longitude = float(longitude)
-    pb.height_msl = float(height_msl)
-    pb.undulation = float(undulation)
+        pb.latitude = float(latitude)
+        pb.longitude = float(longitude)
+        pb.height_msl = float(height_msl)
+        pb.undulation = float(undulation)
 
-    # Accept remaining optional fields; ignore unknown fields for forward compat
-    if kwargs:
-      try:
-        json_format.ParseDict(kwargs, pb, ignore_unknown_fields=True)
-      except Exception as e:
-        raise ValueError(f"failed parsing kwargs into GnssBestPose: {e}")
+        # Accept remaining optional fields; ignore unknown fields for forward compat
+        if kwargs:
+            try:
+                json_format.ParseDict(kwargs, pb, ignore_unknown_fields=True)
+            except Exception as e:
+                raise ValueError(f"failed parsing kwargs into GnssBestPose: {e}")
 
-    self._sequence_num += 1
-    return pb
+        self._sequence_num += 1
+        return pb
+
 
 class ImageBuilder(Builder):
-  def __init__(self) -> None:
-    super().__init__()
+    def __init__(self) -> None:
+        super().__init__()
 
-  def _to_flag(self, encoding):
-    if encoding in ('rgb8', 'bgr8'):
-      return 'color'
-    elif encoding in ('gray', 'y'):
-      return 'grayscale'
-    else:
-      print('Unsupported image encoding type: %s.' % encoding)
-      return None
+    def _to_flag(self, encoding):
+        if encoding in ("rgb8", "bgr8"):
+            return "color"
+        elif encoding in ("gray", "y"):
+            return "grayscale"
+        else:
+            print("Unsupported image encoding type: %s." % encoding)
+            return None
 
-  def build(self, file_name, frame_id, encoding, t=None):
-    pb_image = sensor_image_pb2.Image()
-    flag = self._to_flag(encoding)
-    if flag is None:
-      return
+    def build(self, file_name, frame_id, encoding, t=None):
+        pb_image = sensor_image_pb2.Image()
+        flag = self._to_flag(encoding)
+        if flag is None:
+            return
 
-    if t is None:
-      t = time.time()
+        if t is None:
+            t = time.time()
 
-    self._build_header(pb_image.header, frame_id=frame_id)
-    pb_image.frame_id = frame_id
-    pb_image.measurement_time = t
-    pb_image.encoding = encoding
+        self._build_header(pb_image.header, frame_id=frame_id)
+        pb_image.frame_id = frame_id
+        pb_image.measurement_time = t
+        pb_image.encoding = encoding
 
-    # Load image using Pillow for portability
-    pil_im = Image.open(file_name)
-    if flag == 'color':
-      pil_im = pil_im.convert('RGB')
-      arr = np.asarray(pil_im)
-      pb_image.height, pb_image.width, channels = arr.shape
-      pb_image.step = pb_image.width * channels
-      pb_image.data = arr.tobytes()
-      # store encoding as requested
-    elif flag == 'grayscale':
-      pil_im = pil_im.convert('L')
-      arr = np.asarray(pil_im)
-      pb_image.height, pb_image.width = arr.shape
-      pb_image.step = pb_image.width
-      pb_image.data = arr.tobytes()
-    else:
-      return
-    self._sequence_num += 1
-    return pb_image
+        # Load image using Pillow for portability
+        pil_im = Image.open(file_name)
+        if flag == "color":
+            pil_im = pil_im.convert("RGB")
+            arr = np.asarray(pil_im)
+            pb_image.height, pb_image.width, channels = arr.shape
+            pb_image.step = pb_image.width * channels
+            pb_image.data = arr.tobytes()
+            # store encoding as requested
+        elif flag == "grayscale":
+            pil_im = pil_im.convert("L")
+            arr = np.asarray(pil_im)
+            pb_image.height, pb_image.width = arr.shape
+            pb_image.step = pb_image.width
+            pb_image.data = arr.tobytes()
+        else:
+            return
+        self._sequence_num += 1
+        return pb_image
 
 
 class PointCloudBuilder(Builder):
-  def __init__(self, dim=4) -> None:
-    super().__init__()
-    self._dim = dim
+    def __init__(self, dim=4) -> None:
+        super().__init__()
+        self._dim = dim
 
-  def build(self, file_name, frame_id, t=None):
-    pb_point_cloud = pointcloud_pb2.PointCloud()
+    def build(self, file_name, frame_id, t=None):
+        pb_point_cloud = pointcloud_pb2.PointCloud()
 
-    if t is None:
-      t = time.time()
+        if t is None:
+            t = time.time()
 
-    self._build_header(pb_point_cloud.header, t=t, frame_id=frame_id)
-    pb_point_cloud.frame_id = frame_id
-    # pb_point_cloud.is_dense = False
-    pb_point_cloud.measurement_time = t
+        self._build_header(pb_point_cloud.header, t=t, frame_id=frame_id)
+        pb_point_cloud.frame_id = frame_id
+        # pb_point_cloud.is_dense = False
+        pb_point_cloud.measurement_time = t
 
-    point_cloud = pypcd.point_cloud_from_path(file_name)
+        point_cloud = pypcd.point_cloud_from_path(file_name)
 
-    pb_point_cloud.width = point_cloud.width
-    pb_point_cloud.height = point_cloud.height
+        pb_point_cloud.width = point_cloud.width
+        pb_point_cloud.height = point_cloud.height
 
-    for data in point_cloud.pc_data:
-      point = pb_point_cloud.point.add()
-      point.x, point.y, point.z, point.intensity, timestamp = data
-      point.timestamp = int(timestamp * 1e9)
+        for data in point_cloud.pc_data:
+            point = pb_point_cloud.point.add()
+            point.x, point.y, point.z, point.intensity, timestamp = data
+            point.timestamp = int(timestamp * 1e9)
 
-    self._sequence_num += 1
-    return pb_point_cloud
+        self._sequence_num += 1
+        return pb_point_cloud
 
-  def build_nuscenes(self, file_name, frame_id, t=None, lidar_transform=np.identity(4), intensity_scale_factor=1.0):
-    pb_point_cloud = pointcloud_pb2.PointCloud()
+    def build_nuscenes(
+        self,
+        file_name,
+        frame_id,
+        t=None,
+        lidar_transform=np.identity(4),
+        intensity_scale_factor=1.0,
+    ):
+        pb_point_cloud = pointcloud_pb2.PointCloud()
 
-    if t is None:
-      t = time.time()
+        if t is None:
+            t = time.time()
 
-    self._build_header(pb_point_cloud.header, t=t, frame_id=frame_id)
-    pb_point_cloud.frame_id = frame_id
-    # pb_point_cloud.is_dense = False
-    pb_point_cloud.measurement_time = t
+        self._build_header(pb_point_cloud.header, t=t, frame_id=frame_id)
+        pb_point_cloud.frame_id = frame_id
+        # pb_point_cloud.is_dense = False
+        pb_point_cloud.measurement_time = t
 
-    # Loads LIDAR data from binary numpy format.
-    # Data is stored as (x, y, z, intensity, ring index).
-    if file_name.endswith('.bin'):
-      scan = np.fromfile(file_name, dtype=np.float32)
-    elif file_name.endswith('.txt'):
-      scan = np.loadtxt(file_name, dtype=np.float32)
-    else:
-      raise "Unsupported file extension."
-    logging.debug(scan[:100])
+        # Loads LIDAR data from binary numpy format.
+        # Data is stored as (x, y, z, intensity, ring index).
+        if file_name.endswith(".bin"):
+            scan = np.fromfile(file_name, dtype=np.float32)
+        elif file_name.endswith(".txt"):
+            scan = np.loadtxt(file_name, dtype=np.float32)
+        else:
+            raise ValueError("Unsupported file extension.")
+        logging.debug(scan[:100])
 
-    points = scan.reshape((-1, self._dim))[:, :4]
-    intensities = (points[:, -1] * intensity_scale_factor).astype(np.uint8)
-    points = points @ lidar_transform
+        points = scan.reshape((-1, self._dim))[:, :4]
+        intensities = (points[:, -1] * intensity_scale_factor).astype(np.uint8)
+        points = points @ lidar_transform
 
-    pb_point_cloud.width = len(points)
-    pb_point_cloud.height = 1
+        pb_point_cloud.width = len(points)
+        pb_point_cloud.height = 1
 
-    # Points shape is (length, 4)
-    n0, _ = np.shape(points)
-    for i in range(n0):
-      point = pb_point_cloud.point.add()
-      point.intensity = intensities[i]
-      points[i][3] = 1
-      point.x, point.y, point.z, _ = points[i]
-    self._sequence_num += 1
-    return pb_point_cloud
+        # Points shape is (length, 4)
+        n0, _ = np.shape(points)
+        for i in range(n0):
+            point = pb_point_cloud.point.add()
+            point.intensity = intensities[i]
+            points[i][3] = 1
+            point.x, point.y, point.z, _ = points[i]
+        self._sequence_num += 1
+        return pb_point_cloud

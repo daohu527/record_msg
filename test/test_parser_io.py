@@ -1,17 +1,32 @@
-import os
-import tempfile
+#!/usr/bin/env python
+
+# Copyright 2026 daohu527 <daohu527@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import numpy as np
+from PIL import Image as PILImage
 from modules.common_msgs.sensor_msgs import sensor_image_pb2
 from record_msg.parser import ImageParser, PointCloudParser
 from record_msg import pypcd
 
 
-def make_pb_image(width=3, height=2, encoding='rgb8'):
+def make_pb_image(width=3, height=2, encoding="rgb8"):
     pb = sensor_image_pb2.Image()
     pb.width = width
     pb.height = height
     pb.encoding = encoding
-    if encoding in ('rgb8', 'bgr8'):
+    if encoding in ("rgb8", "bgr8"):
         arr = np.zeros((height, width, 3), dtype=np.uint8) + 5
         pb.step = width * 3
         pb.data = arr.tobytes()
@@ -24,7 +39,7 @@ def make_pb_image(width=3, height=2, encoding='rgb8'):
 
 def test_image_parser_saves_and_parses(tmp_path):
     out = tmp_path
-    p = ImageParser(str(out), instance_saving=True, suffix='.png')
+    p = ImageParser(str(out), instance_saving=True, suffix=".png")
     pb = make_pb_image()
     arr = p.parse(pb)
     # parsed array shape
@@ -33,7 +48,7 @@ def test_image_parser_saves_and_parses(tmp_path):
     p.close(wait=True)
     # check for at least one file written
     files = list(out.iterdir())
-    assert any(str(f).endswith('.png') for f in files)
+    assert any(str(f).endswith(".png") for f in files)
 
 
 def make_fake_pointxyzit(points):
@@ -55,9 +70,50 @@ def test_pointcloud_parser_make_and_save(tmp_path):
     pts = [(1.0, 2.0, 3.0, 10, 1.0), (4.0, 5.0, 6.0, 20, 2.0)]
     pc_pb = make_fake_pointxyzit(pts)
     out = tmp_path
-    p = PointCloudParser(str(out), instance_saving=True, suffix='.pcd')
-    pc = p.parse(pc_pb, file_name='x', mode='binary_compressed')
+    p = PointCloudParser(str(out), instance_saving=True, suffix=".pcd")
+    pc = p.parse(pc_pb, file_name="x", mode="binary_compressed")
     assert pc.points == len(pts)
     p.close(wait=True)
     files = list(out.iterdir())
-    assert any(str(f).endswith('.pcd') for f in files)
+    assert any(str(f).endswith(".pcd") for f in files)
+
+
+def test_image_parser_async_save_uses_snapshot_encoding(tmp_path, monkeypatch):
+    class DeferredExecutor:
+        def __init__(self):
+            self.tasks = []
+
+        def submit(self, fn):
+            self.tasks.append(fn)
+
+        def shutdown(self, wait=True):
+            if wait:
+                for fn in list(self.tasks):
+                    fn()
+            self.tasks.clear()
+
+    class DummyImage:
+        def __init__(self, mode):
+            self.mode = mode
+
+        def save(self, _):
+            return None
+
+    modes = []
+
+    def fake_fromarray(_, mode=None):
+        modes.append(mode)
+        return DummyImage(mode)
+
+    monkeypatch.setattr(PILImage, "fromarray", fake_fromarray)
+
+    parser = ImageParser(str(tmp_path), instance_saving=True, suffix=".png")
+    parser._save_executor = DeferredExecutor()
+
+    parser.parse(make_pb_image(encoding="rgb8"), file_name="first")
+    parser.parse(make_pb_image(encoding="gray"), file_name="second")
+
+    for task in list(parser._save_executor.tasks):
+        task()
+
+    assert modes[:2] == ["RGB", "L"]

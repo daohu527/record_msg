@@ -19,10 +19,10 @@ from record_msg.parser import to_csv
 
 
 def test_to_csv_nested_lists():
-    x = [1, 2, ['a', 'b', '1111']]
-    assert to_csv(x) == [1, 2, 'a', 'b', '1111']
+    x = [1, 2, ["a", "b", "1111"]]
+    assert to_csv(x) == [1, 2, "a", "b", "1111"]
 
 
 def test_to_csv_primitives():
     assert to_csv(5) == [5]
-    assert to_csv('a') == ['a']
+    assert to_csv("a") == ["a"]
