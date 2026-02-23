@@ -18,7 +18,6 @@
 from PIL import Image
 import numpy as np
 import logging
-import numpy as np
 import time
 
 from record_msg import pypcd
